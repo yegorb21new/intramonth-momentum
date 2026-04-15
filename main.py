@@ -36,6 +36,7 @@ failed_tickers = []
 #     for ticker, error in failed_tickers:
 #         print(f"{ticker}: {error}")
 
+
 empty_files = []
 
 for ticker in tickers:
