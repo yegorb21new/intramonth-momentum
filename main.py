@@ -1,10 +1,12 @@
 import yfinance as yf
 
-data = yf.download("AAPL", start="2000-01-01")
-# flatten columns
-data.columns = data.columns.droplevel(1)
+tickers = ["AAPL", "MSFT", "SPY"]
 
-data.to_csv("data/raw/AAPL.csv", index=True)
+for ticker in tickers:
+    data = yf.download(ticker, start="2000-01-01")
+    # flatten columns
+    data.columns = data.columns.droplevel(1)
+    data.to_csv(f"data/raw/{ticker}.csv", index=True)
 
 # print(data.head())
 print("saved")
