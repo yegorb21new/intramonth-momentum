@@ -129,7 +129,7 @@ window_losers = loser_avg.loc[-20:0]
 window_winners = winner_avg.loc[-20:0]
 
 # define window
-window_mask = (combined["T"] >= -9) & (combined["T"] <= -4)
+window_mask = (combined["T"] >= -6) & (combined["T"] <= -2)
 rest_mask = ~window_mask
 
 loser_window = combined[(combined["momentum_rank"] <= 0.1) & window_mask]["ret_1d"].mean()
@@ -146,8 +146,8 @@ winner_rest = combined[(combined["momentum_rank"] >= 0.9) & rest_mask]["ret_1d"]
 # print(f"Winners rest: {winner_rest}")
 # print(f"Spread rest: {winner_rest - loser_rest}")
 
-# define window again (after filtering)
-window_mask = (combined["T"] >= -9) & (combined["T"] <= -4)
+# # define window again (after filtering)
+# window_mask = (combined["T"] >= -6) & (combined["T"] <= -2)
 
 # keep only window data
 window_data = combined[window_mask].copy()
@@ -201,3 +201,11 @@ up_months = monthly[monthly["spy_ret"] >= 0]
 
 print("\nDown months avg spread:", down_months["spread"].mean())
 print("Up months avg spread:", up_months["spread"].mean())
+
+print("\nLoser-only stats:")
+print("Window:", loser_window)
+print("Rest:", loser_rest)
+
+print("\nWinner-only stats:")
+print("Window:", winner_window)
+print("Rest:", winner_rest)
