@@ -10,7 +10,7 @@ The analysis is inspired by academic research on return concentration and flow d
 
 ## Key Question
 
-> Do stocks with poor prior performance exhibit systematic underperformance in the final trading days of the month due to forced institutional selling?
+Do stocks with poor prior performance exhibit systematic underperformance in the final trading days of the month due to forced institutional selling?
 
 ---
 
