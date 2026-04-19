@@ -17,7 +17,7 @@ from src.analysis import (
 WINDOW_START = -6
 WINDOW_END = -2
 
-START_DATE = "2025-01-01"
+START_DATE = "2024-06-01"
 
 # tickers = get_sp500_tickers()
 
@@ -60,6 +60,6 @@ print(monthly)
 print("\nDown months avg spread:", down_months["spread"].mean())
 print("Up months avg spread:", up_months["spread"].mean())
 
-plot_avg_returns_by_t(avg_by_T)
-plot_loser_winner_returns_by_t(window_losers, window_winners)
-plot_monthly_spreads(monthly)
+# plot_avg_returns_by_t(avg_by_T)
+# plot_loser_winner_returns_by_t(window_losers, window_winners)
+# plot_monthly_spreads(monthly)

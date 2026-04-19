@@ -64,15 +64,15 @@ Two key windows evaluated:
 
 ## Results (2025–2026)
 
-### 1. Strong Loser-Specific Effect
+### 1. Strong Effect
 
 | Group | Window (T−6 to T−2) | Rest of Month |
 |------|--------------------|--------------|
 | **Losers** | **−0.33% / day** | +0.15% / day |
 | Winners | +0.75% / day | +0.22% / day |
 
-- Losers exhibit **sharp underperformance in the pre-month-end window**
-- Winners do not show comparable structural behavior
+- Both losers and winners exhibit amplified returns in the pre-month-end window, resulting in a sharp increase in cross-sectional dispersion
+- Losers shift from positive to negative returns, while winners experience a significant increase in positive returns
 
 ---
 
