@@ -6,20 +6,6 @@ import yfinance as yf
 import matplotlib.pyplot as plt
 
 
-def get_sp500_tickers():
-    url = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
-    headers = {"User-Agent": "Mozilla/5.0"}
-    response = requests.get(url, headers=headers)
-    tables = pd.read_html(StringIO(response.text))
-    sp500_table = tables[0]
-
-    tickers = sp500_table["Symbol"].tolist()
-    tickers = [t.replace(".", "-") for t in tickers]
-    tickers.append("SPY")
-
-    return tickers
-
-
 def load_data():
     all_data = []
 
@@ -104,3 +90,70 @@ def calculate_monthly_window_spreads(combined, window_start, window_end):
     monthly["spread"] = monthly["winner_ret"] - monthly["loser_ret"]
 
     return monthly
+
+
+def calculate_avg_returns_by_t(combined, t_min=-20, t_max=0):
+    avg_by_t = combined.groupby("T")["ret_1d"].mean()
+    return avg_by_t.loc[t_min:t_max]
+
+
+def calculate_loser_winner_returns_by_t(combined, t_min=-20, t_max=0):
+    losers = combined[combined["momentum_rank"] <= 0.1]
+    winners = combined[combined["momentum_rank"] >= 0.9]
+
+    loser_avg = losers.groupby("T")["ret_1d"].mean()
+    winner_avg = winners.groupby("T")["ret_1d"].mean()
+
+    loser_window = loser_avg.loc[t_min:t_max]
+    winner_window = winner_avg.loc[t_min:t_max]
+
+    return loser_window, winner_window
+
+
+def split_monthly_spreads_by_spy_direction(combined, monthly):
+    spy = combined[combined["Ticker"] == "SPY"].copy()
+    spy["year_month"] = spy["Date"].dt.to_period("M")
+
+    spy_monthly = spy.groupby("year_month")["ret_1d"].sum()
+
+    monthly_with_spy = monthly.merge(
+        spy_monthly.rename("spy_ret"),
+        left_index=True,
+        right_index=True
+    )
+
+    down_months = monthly_with_spy[monthly_with_spy["spy_ret"] < 0]
+    up_months = monthly_with_spy[monthly_with_spy["spy_ret"] >= 0]
+
+    return monthly_with_spy, down_months, up_months
+
+
+def plot_avg_returns_by_t(avg_by_t, title="Average Return by T (All Stocks)"):
+    plt.figure(figsize=(10, 5))
+    plt.plot(avg_by_t.index, avg_by_t.values)
+    plt.axhline(0)
+    plt.title(title)
+    plt.xlabel("T (Trading Days to Month-End)")
+    plt.ylabel("Average Daily Return")
+    plt.show()
+
+
+def plot_loser_winner_returns_by_t(loser_series, winner_series, title="Losers vs Winners Return by T"):
+    plt.figure(figsize=(10, 5))
+    plt.plot(loser_series.index, loser_series.values, label="Losers")
+    plt.plot(winner_series.index, winner_series.values, label="Winners")
+    plt.axhline(0)
+    plt.legend()
+    plt.title(title)
+    plt.xlabel("T (Trading Days to Month-End)")
+    plt.ylabel("Average Daily Return")
+    plt.show()
+
+
+def plot_monthly_spreads(monthly, title="Monthly WML Spread"):
+    plt.figure(figsize=(10, 5))
+    monthly["spread"].plot(kind="bar")
+    plt.axhline(0)
+    plt.title(title)
+    plt.ylabel("Spread")
+    plt.show()
