@@ -4,17 +4,16 @@ import os
 from io import StringIO
 import yfinance as yf
 import matplotlib.pyplot as plt
+from src.analysis import get_sp500_tickers, load_data, preprocess_data, add_momentum, filter_date_range, calculate_window_returns, calculate_monthly_window_spreads
 
-# get tickers
-# url = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
-# headers = {"User-Agent": "Mozilla/5.0"}
-# response = requests.get(url, headers=headers)
-# tables = pd.read_html(StringIO(response.text))
-# sp500_table = tables[0]
 
-# tickers = sp500_table["Symbol"].tolist()
-# tickers = [t.replace(".", "-") for t in tickers]
-# tickers.append("SPY")
+WINDOW_START = -6
+WINDOW_END = -2
+
+START_DATE = "2025-01-01"
+
+
+tickers = get_sp500_tickers()
 
 # success_count = 0
 # failed_tickers = []
@@ -53,45 +52,13 @@ import matplotlib.pyplot as plt
 # if empty_files:
 #     print(empty_files)
 
-all_data = []
+combined = load_data()
 
-for file in os.listdir("data/raw"):
-    if file.endswith(".csv"):
-        ticker = file.replace(".csv", "")
-        df = pd.read_csv(f"data/raw/{file}")
-        df["Ticker"] = ticker
-        all_data.append(df)
+combined = preprocess_data(combined)
 
-combined = pd.concat(all_data, ignore_index=True)
-
-combined["Date"] = pd.to_datetime(combined["Date"])
-
-combined = combined.sort_values(["Ticker", "Date"])
-combined = combined[combined["Date"] >= "2020-01-01"].copy()
+combined = filter_date_range(combined, start_date=START_DATE)
 print(combined["Date"].min(), combined["Date"].max())
 
-combined = combined[combined["Date"] >= "2025-01-01"].copy()
-print(combined["Date"].min(), combined["Date"].max())
-
-# print(combined.head())
-# print(f"\nTotal rows: {len(combined)}")
-# print(f"Unique tickers: {combined['Ticker'].nunique()}")
-
-combined["ret_1d"] = combined.groupby("Ticker")["Close"].pct_change()
-# print(combined.head(10))
-
-# get last trading day of each month per ticker
-combined["month"] = combined["Date"].dt.to_period("M")
-
-# rank days within each month (reverse so month-end = 0)
-combined["day_rank"] = combined.groupby(["Ticker", "month"])["Date"].rank(method="first", ascending=True)
-
-combined["days_in_month"] = combined.groupby(["Ticker", "month"])["Date"].transform("count")
-
-# T = 0 is last day → so subtract
-combined["T"] = combined["day_rank"] - combined["days_in_month"]
-
-# print(combined[["Date", "Ticker", "T"]].head(40))
 
 # average return by T (all stocks)
 avg_by_T = combined.groupby("T")["ret_1d"].mean()
@@ -99,24 +66,7 @@ avg_by_T = combined.groupby("T")["ret_1d"].mean()
 # focus on last ~20 trading days
 window = avg_by_T.loc[-20:0]
 
-# print(window)
-# show avg return for all stocks by trading days to month end
-# plt.figure(figsize=(10, 5))
-# plt.plot(window.index, window.values)
-# plt.axhline(0)
-# plt.title("Average Return by T (All Stocks)")
-# plt.xlabel("T (Trading Days to Month-End)")
-# plt.ylabel("Average Daily Return")
-# plt.show()
-
-# 12-1 momentum (skip last 21 trading days)
-combined["ret_12m"] = combined.groupby("Ticker")["Close"].pct_change(252)
-combined["ret_1m"] = combined.groupby("Ticker")["Close"].pct_change(21)
-
-combined["momentum"] = combined["ret_12m"] - combined["ret_1m"]
-
-# rank into deciles each day
-combined["momentum_rank"] = combined.groupby("Date")["momentum"].rank(pct=True)
+combined = add_momentum(combined)
 
 # define losers and winners
 losers = combined[combined["momentum_rank"] <= 0.1]
@@ -128,48 +78,22 @@ winner_avg = winners.groupby("T")["ret_1d"].mean()
 window_losers = loser_avg.loc[-20:0]
 window_winners = winner_avg.loc[-20:0]
 
-# define window
-window_mask = (combined["T"] >= -6) & (combined["T"] <= -2)
-rest_mask = ~window_mask
+results = calculate_window_returns(combined, WINDOW_START, WINDOW_END)
 
-loser_window = combined[(combined["momentum_rank"] <= 0.1) & window_mask]["ret_1d"].mean()
-winner_window = combined[(combined["momentum_rank"] >= 0.9) & window_mask]["ret_1d"].mean()
+print(f"Losers avg return (T-6 to T-2): {results['loser_window']}")
+print(f"Winners avg return (T-6 to T-2): {results['winner_window']}")
+print(f"Spread (WML): {results['spread_window']}")
 
-loser_rest = combined[(combined["momentum_rank"] <= 0.1) & rest_mask]["ret_1d"].mean()
-winner_rest = combined[(combined["momentum_rank"] >= 0.9) & rest_mask]["ret_1d"].mean()
+print(f"\nLosers rest: {results['loser_rest']}")
+print(f"Winners rest: {results['winner_rest']}")
+print(f"Spread rest: {results['spread_rest']}")
 
-# print(f"Losers avg return (T-9 to T-4): {loser_window}")
-# print(f"Winners avg return (T-9 to T-4): {winner_window}")
-# print(f"Spread (WML): {winner_window - loser_window}")
-
-# print(f"\nLosers rest: {loser_rest}")
-# print(f"Winners rest: {winner_rest}")
-# print(f"Spread rest: {winner_rest - loser_rest}")
-
-# # define window again (after filtering)
-# window_mask = (combined["T"] >= -6) & (combined["T"] <= -2)
-
-# keep only window data
-window_data = combined[window_mask].copy()
-
-# add year-month label
-window_data["year_month"] = window_data["Date"].dt.to_period("M")
-
-# compute loser and winner returns per month
-monthly = window_data.groupby(["year_month"]).apply(
-    lambda df: pd.Series({
-        "loser_ret": df[df["momentum_rank"] <= 0.1]["ret_1d"].mean(),
-        "winner_ret": df[df["momentum_rank"] >= 0.9]["ret_1d"].mean()
-    })
-)
-
-# compute spread
-monthly["spread"] = monthly["winner_ret"] - monthly["loser_ret"]
-
-# print(monthly)
+monthly = calculate_monthly_window_spreads(combined, WINDOW_START, WINDOW_END)
 
 print("\nMonthly spread stats:")
 print(monthly["spread"].describe())
+
+print(monthly)
 
 # plt.figure(figsize=(10,5))
 # plt.plot(window_losers.index, window_losers.values, label="Losers")
@@ -202,10 +126,10 @@ up_months = monthly[monthly["spy_ret"] >= 0]
 print("\nDown months avg spread:", down_months["spread"].mean())
 print("Up months avg spread:", up_months["spread"].mean())
 
-print("\nLoser-only stats:")
-print("Window:", loser_window)
-print("Rest:", loser_rest)
+# print("\nLoser-only stats:")
+# print("Window:", loser_window)
+# print("Rest:", loser_rest)
 
-print("\nWinner-only stats:")
-print("Window:", winner_window)
-print("Rest:", winner_rest)
+# print("\nWinner-only stats:")
+# print("Window:", winner_window)
+# print("Rest:", winner_rest)
