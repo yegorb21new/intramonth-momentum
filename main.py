@@ -11,7 +11,10 @@ from src.analysis import (
     split_monthly_spreads_by_spy_direction,
     plot_avg_returns_by_t,
     plot_loser_winner_returns_by_t,
-    plot_monthly_spreads
+    plot_monthly_spreads,
+    calculate_t_stats,
+    leave_one_out_t_stats,
+    test_t1_shift
 )
 
 WINDOW_START = -6
@@ -56,9 +59,35 @@ print(monthly["spread"].describe())
 
 print(monthly)
 
+t_stats = calculate_t_stats(monthly)
+
+print("\nT-Stat Summary (Monthly Spreads):")
+print(f"N: {t_stats['n']}")
+print(f"Mean: {t_stats['mean']}")
+print(f"Std: {t_stats['std']}")
+print(f"SE: {t_stats['se']}")
+print(f"T-Stat: {t_stats['t_stat']}")
+
+loo = leave_one_out_t_stats(monthly)
+
+print("\nLeave-One-Out T-Stats:")
+print(loo)
+
 
 print("\nDown months avg spread:", down_months["spread"].mean())
 print("Up months avg spread:", up_months["spread"].mean())
+
+
+t1 = test_t1_shift(combined)
+
+print("\nT+1 Shift Test:")
+print(f"Pre T-4: {t1['pre_t4']}")
+print(f"Pre T-3: {t1['pre_t3']}")
+print(f"Post T-4: {t1['post_t4']}")
+print(f"Post T-3: {t1['post_t3']}")
+print(f"Pre (T-3 - T-4): {t1['pre_diff']}")
+print(f"Post (T-3 - T-4): {t1['post_diff']}")
+print(f"Shift (DiD-style): {t1['shift']}")
 
 # plot_avg_returns_by_t(avg_by_T)
 # plot_loser_winner_returns_by_t(window_losers, window_winners)

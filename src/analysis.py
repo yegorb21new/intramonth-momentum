@@ -4,6 +4,8 @@ import os
 from io import StringIO
 import yfinance as yf
 import matplotlib.pyplot as plt
+import numpy as np
+
 
 
 def load_data():
@@ -126,6 +128,81 @@ def split_monthly_spreads_by_spy_direction(combined, monthly):
     up_months = monthly_with_spy[monthly_with_spy["spy_ret"] >= 0]
 
     return monthly_with_spy, down_months, up_months
+
+
+def calculate_t_stats(monthly):
+    spreads = monthly["spread"].dropna()
+
+    n = len(spreads)
+    mean = spreads.mean()
+    std = spreads.std(ddof=1)
+
+    # standard error
+    se = std / np.sqrt(n)
+
+    # t-stat
+    t_stat = mean / se if se != 0 else np.nan
+
+    return {
+        "n": n,
+        "mean": mean,
+        "std": std,
+        "se": se,
+        "t_stat": t_stat
+    }
+
+
+def leave_one_out_t_stats(monthly):
+    spreads = monthly["spread"].dropna()
+    results = []
+
+    for i in range(len(spreads)):
+        subset = spreads.drop(spreads.index[i])
+
+        n = len(subset)
+        mean = subset.mean()
+        std = subset.std(ddof=1)
+        se = std / np.sqrt(n)
+        t_stat = mean / se if se != 0 else np.nan
+
+        results.append({
+            "dropped_month": spreads.index[i],
+            "mean": mean,
+            "t_stat": t_stat
+        })
+
+    return pd.DataFrame(results)
+
+
+def test_t1_shift(combined, split_date="2024-05-28"):
+    # pre vs post split
+    pre = combined[combined["Date"] < split_date]
+    post = combined[combined["Date"] >= split_date]
+
+    def get_stats(df):
+        losers = df[df["momentum_rank"] <= 0.1]
+
+        t_minus_4 = losers[losers["T"] == -4]["ret_1d"].mean()
+        t_minus_3 = losers[losers["T"] == -3]["ret_1d"].mean()
+
+        return t_minus_4, t_minus_3
+
+    pre_t4, pre_t3 = get_stats(pre)
+    post_t4, post_t3 = get_stats(post)
+
+    # differences
+    pre_diff = pre_t3 - pre_t4
+    post_diff = post_t3 - post_t4
+
+    return {
+        "pre_t4": pre_t4,
+        "pre_t3": pre_t3,
+        "post_t4": post_t4,
+        "post_t3": post_t3,
+        "pre_diff": pre_diff,
+        "post_diff": post_diff,
+        "shift": post_diff - pre_diff
+    }
 
 
 def plot_avg_returns_by_t(avg_by_t, title="Average Return by T (All Stocks)"):
