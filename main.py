@@ -14,13 +14,16 @@ from src.analysis import (
     plot_monthly_spreads,
     calculate_t_stats,
     leave_one_out_t_stats,
-    test_t1_shift
+    test_t1_shift,
+    calculate_monthly_window_vs_rest,
+    exclude_latest_month,
+    scan_candidate_windows
 )
 
 WINDOW_START = -6
 WINDOW_END = -2
 
-START_DATE = "2024-06-01"
+START_DATE = "2023-06-01"
 
 # tickers = get_sp500_tickers()
 
@@ -33,6 +36,7 @@ START_DATE = "2024-06-01"
 combined = load_data()
 combined = preprocess_data(combined)
 combined = filter_date_range(combined, start_date=START_DATE)
+combined = exclude_latest_month(combined)
 combined = add_momentum(combined)
 
 avg_by_T = calculate_avg_returns_by_t(combined)
@@ -88,6 +92,28 @@ print(f"Post T-3: {t1['post_t3']}")
 print(f"Pre (T-3 - T-4): {t1['pre_diff']}")
 print(f"Post (T-3 - T-4): {t1['post_diff']}")
 print(f"Shift (DiD-style): {t1['shift']}")
+
+
+monthly_compare = calculate_monthly_window_vs_rest(combined, WINDOW_START, WINDOW_END)
+
+print("\nMonthly window vs rest comparison:")
+print(monthly_compare[["window_spread", "rest_spread", "diff_spread"]])
+
+diff_stats = calculate_t_stats(
+    monthly_compare[["diff_spread"]].rename(columns={"diff_spread": "spread"})
+)
+
+print("\nT-Stat Summary (Window Spread - Rest Spread):")
+print(f"N: {diff_stats['n']}")
+print(f"Mean: {diff_stats['mean']}")
+print(f"Std: {diff_stats['std']}")
+print(f"SE: {diff_stats['se']}")
+print(f"T-Stat: {diff_stats['t_stat']}")
+
+window_scan = scan_candidate_windows(combined)
+
+print("\nTop candidate windows:")
+print(window_scan.head(15))
 
 # plot_avg_returns_by_t(avg_by_T)
 # plot_loser_winner_returns_by_t(window_losers, window_winners)

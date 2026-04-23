@@ -56,6 +56,60 @@ def filter_date_range(combined, start_date=None, end_date=None):
     return combined
 
 
+def exclude_latest_month(combined):
+    latest_month = combined["Date"].max().to_period("M")
+    return combined[combined["Date"].dt.to_period("M") < latest_month].copy()
+
+
+def scan_candidate_windows(
+    combined,
+    start_min=-12,
+    start_max=-4,
+    end_max=-1,
+    min_len=3,
+    max_len=8
+):
+    results = []
+
+    for window_start in range(start_min, start_max + 1):
+        for window_end in range(window_start, end_max + 1):
+            length = window_end - window_start + 1
+
+            if length < min_len or length > max_len:
+                continue
+
+            monthly_compare = calculate_monthly_window_vs_rest(
+                combined,
+                window_start,
+                window_end
+            )
+
+            diff_stats = calculate_t_stats(
+                monthly_compare[["diff_spread"]].rename(
+                    columns={"diff_spread": "spread"}
+                )
+            )
+
+            results.append({
+                "window_start": window_start,
+                "window_end": window_end,
+                "length": length,
+                "n_months": diff_stats["n"],
+                "mean_diff": diff_stats["mean"],
+                "std_diff": diff_stats["std"],
+                "se_diff": diff_stats["se"],
+                "t_stat_diff": diff_stats["t_stat"],
+            })
+
+    results_df = pd.DataFrame(results)
+    results_df = results_df.sort_values(
+        ["t_stat_diff", "mean_diff"],
+        ascending=False
+    )
+
+    return results_df
+
+
 def calculate_window_returns(combined, window_start, window_end):
     window_mask = (combined["T"] >= window_start) & (combined["T"] <= window_end)
     rest_mask = ~window_mask
@@ -203,6 +257,45 @@ def test_t1_shift(combined, split_date="2024-05-28"):
         "post_diff": post_diff,
         "shift": post_diff - pre_diff
     }
+
+
+def calculate_monthly_window_vs_rest(combined, window_start, window_end):
+    window_mask = (combined["T"] >= window_start) & (combined["T"] <= window_end)
+    rest_mask = ~window_mask
+
+    df = combined.copy()
+    df["year_month"] = df["Date"].dt.to_period("M")
+
+    def compute_monthly_spread(subset):
+        return subset.groupby("year_month").apply(
+            lambda x: pd.Series({
+                "loser_ret": x[x["momentum_rank"] <= 0.1]["ret_1d"].mean(),
+                "winner_ret": x[x["momentum_rank"] >= 0.9]["ret_1d"].mean()
+            })
+        )
+
+    window_monthly = compute_monthly_spread(df[window_mask]).rename(columns={
+        "loser_ret": "window_loser_ret",
+        "winner_ret": "window_winner_ret"
+    })
+    window_monthly["window_spread"] = (
+        window_monthly["window_winner_ret"] - window_monthly["window_loser_ret"]
+    )
+
+    rest_monthly = compute_monthly_spread(df[rest_mask]).rename(columns={
+        "loser_ret": "rest_loser_ret",
+        "winner_ret": "rest_winner_ret"
+    })
+    rest_monthly["rest_spread"] = (
+        rest_monthly["rest_winner_ret"] - rest_monthly["rest_loser_ret"]
+    )
+
+    monthly_compare = window_monthly.join(rest_monthly, how="outer")
+    monthly_compare["diff_spread"] = (
+        monthly_compare["window_spread"] - monthly_compare["rest_spread"]
+    )
+
+    return monthly_compare
 
 
 def plot_avg_returns_by_t(avg_by_t, title="Average Return by T (All Stocks)"):
